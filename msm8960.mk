@@ -32,7 +32,7 @@ PRODUCT_PACKAGES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.hwc.mdpcomp.enable=true
 
-# Lights wrapper
+# Lights HAL
 PRODUCT_PACKAGES += \
     lights.msm8960
 
