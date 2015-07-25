@@ -33,9 +33,6 @@
 #include <camera/Camera.h>
 #include <camera/CameraParameters.h>
 
-static char KEY_SUPPORTED_ISO_MODES[] = "iso-values";
-static char KEY_ISO_MODE[] = "iso";
-
 // Sony parameter names
 static char KEY_SONY_IMAGE_STABILISER_VALUES[] = "sony-is-values";
 static char KEY_SONY_IMAGE_STABILISER[] = "sony-is";
@@ -47,12 +44,26 @@ static char KEY_SONY_ISO_AVAIL_MODES[] = "sony-iso-values";
 static char KEY_SONY_ISO_MODE[] = "sony-iso";
 static char KEY_SONY_AE_MODE_VALUES[] = "sony-ae-mode-values";
 static char KEY_SONY_AE_MODE[] = "sony-ae-mode";
+static char KEY_SONY_METERING_MODE_VALUES[] = "sony-metering-mode-values";
+static char KEY_SONY_METERING_MODE[] = "sony-metering-mode";
+static char KEY_SONY_FOCUS_AREA[] = "sony-focus-area";
+static char KEY_SONY_FOCUS_AREA_VALUES[] = "sony-focus-area-values";
 
 // Sony parameter values
 static char VALUE_SONY_ON[] = "on";
 static char VALUE_SONY_OFF[] = "off";
 static char VALUE_SONY_STILL_HDR[] = "on-still-hdr";
+static char VALUE_SONY_AUTO_EXPOSURE_SPOT[] = "spot";
 static char VALUE_SONY_INTELLIGENT_ACTIVE[] = "on-intelligent-active";
+
+// QCOM parameter names
+static char KEY_ISO_MODE[] = "iso";
+static char KEY_SUPPORTED_ISO_MODES[] = "iso-values";
+static char KEY_AUTO_EXPOSURE[] = "auto-exposure";
+static char KEY_SUPPORTED_AUTO_EXPOSURE[] = "auto-exposure-values";
+
+// QCOM parameter values
+static char VALUE_AUTO_EXPOSURE_SPOT_METERING[] = "spot-metering";
 
 static android::Mutex gCameraWrapperLock;
 static camera_module_t *gVendorModule = 0;
@@ -159,6 +170,23 @@ static char *camera_fixup_getparams(int id, const char *settings)
         params.set(KEY_SUPPORTED_ISO_MODES, buffer);
     }
 
+    if (params.get(KEY_SONY_METERING_MODE_VALUES)) {
+        const char *meteringModeList = params.get(KEY_SONY_METERING_MODE_VALUES);
+
+        char buffer[255] = "";
+        strcpy(buffer, meteringModeList);
+
+        char* spotPtr = strstr(meteringModeList, VALUE_SONY_AUTO_EXPOSURE_SPOT);
+        if (spotPtr != NULL) {
+            char spotLoc = spotPtr - meteringModeList;
+            buffer[spotLoc] = 0;
+            strcat(buffer, VALUE_AUTO_EXPOSURE_SPOT_METERING);
+            strcat(buffer, spotPtr + 4);
+        }
+
+        params.set(KEY_SUPPORTED_AUTO_EXPOSURE, buffer);
+    }
+
     if (params.get(KEY_SONY_IMAGE_STABILISER)) {
         const char *sony_is = params.get(KEY_SONY_IMAGE_STABILISER);
         if (strcmp(sony_is, VALUE_SONY_STILL_HDR) == 0) {
@@ -203,6 +231,15 @@ static char *camera_fixup_getparams(int id, const char *settings)
                 params.set(KEY_ISO_MODE, "auto");
                 params.set("shutter-speed","auto");
             }
+        }
+    }
+
+    if (params.get(KEY_SONY_METERING_MODE) && params.get(KEY_SONY_METERING_MODE_VALUES)) {
+        const char* meteringMode = params.get(KEY_SONY_METERING_MODE);
+        if (strcmp(meteringMode, VALUE_SONY_AUTO_EXPOSURE_SPOT) == 0) {
+            params.set(KEY_AUTO_EXPOSURE, VALUE_AUTO_EXPOSURE_SPOT_METERING);
+        } else {
+            params.set(KEY_AUTO_EXPOSURE, meteringMode);
         }
     }
 
@@ -287,6 +324,24 @@ static char *camera_fixup_setparams(int id, const char *settings)
                 params.set(KEY_SONY_VIDEO_STABILISER, VALUE_SONY_ON);
             }
             params.set(KEY_SONY_IMAGE_STABILISER, VALUE_SONY_OFF);
+        }
+    }
+
+    if (params.get(KEY_AUTO_EXPOSURE) && params.get(KEY_SONY_METERING_MODE)) {
+       if (strcmp(params.get(KEY_AUTO_EXPOSURE), VALUE_AUTO_EXPOSURE_SPOT_METERING) == 0) {
+           params.set(KEY_SONY_METERING_MODE, VALUE_SONY_AUTO_EXPOSURE_SPOT);
+       } else {
+           params.set(KEY_SONY_METERING_MODE, params.get(KEY_AUTO_EXPOSURE));
+       }
+    }
+
+    if (params.get(android::CameraParameters::KEY_FOCUS_AREAS)) {
+        if (strcmp(params.get(android::CameraParameters::KEY_FOCUS_AREAS), "(0,0,0,0,0)") != 0) {
+            if (params.get(KEY_SONY_FOCUS_AREA_VALUES)) {
+                params.set(KEY_SONY_FOCUS_AREA, "user");
+            } else {
+                params.set(KEY_SONY_FOCUS_AREA, "center");
+            }
         }
     }
 
